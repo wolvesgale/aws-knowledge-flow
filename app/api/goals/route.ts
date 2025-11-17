@@ -12,42 +12,37 @@ export async function GET() {
   try {
     const res = await notion.databases.query({
       database_id: NOTION_DB_GOALS,
-      sorts: [
-        {
-          property: 'Goal ID', // Notion側のプロパティ名に合わせる
-          direction: 'ascending',
-        },
-      ],
+      // 並び順が必要になったら Notion 側に "Order" 数値プロパティを作り、
+      // ここで sorts に追加する感じでOK
     });
 
-    const goals: Goal[] = res.results
-      .map((page: any) => {
-        const props = page.properties;
+    const goals: Goal[] = res.results.map((page: any) => {
+      const props = page.properties;
 
-        const titleProp = props['Name'] ?? props['Goal Name'];
-        const descProp = props['Description'];
+      // タイトル系プロパティ（Name or Goal Name を優先）
+      const titleProp = props['Name'] ?? props['Goal Name'];
+      const title =
+        titleProp?.title?.[0]?.plain_text ??
+        titleProp?.rich_text?.[0]?.plain_text ??
+        'Untitled';
 
-        const title =
-          titleProp?.title?.[0]?.plain_text ??
-          titleProp?.rich_text?.[0]?.plain_text ??
-          'Untitled';
+      // 説明（Description があれば）
+      const descProp = props['Description'];
+      const description =
+        descProp?.rich_text?.[0]?.plain_text ?? undefined;
 
-        const description =
-          descProp?.rich_text?.[0]?.plain_text ?? undefined;
+      // Goal ID があればそれを使い、なければページIDをそのまま
+      const goalIdProp = props['Goal ID'];
+      const goalId =
+        goalIdProp?.rich_text?.[0]?.plain_text ??
+        page.id.replace(/-/g, '');
 
-        const goalIdProp = props['Goal ID'];
-        const goalId =
-          goalIdProp?.rich_text?.[0]?.plain_text ??
-          page.id.replace(/-/g, ''); // 保険
-
-        return {
-          id: goalId,
-          title,
-          description,
-        } as Goal;
-      })
-      // 非表示フラグやStatusでフィルタしたかったらここで
-      .filter(Boolean);
+      return {
+        id: goalId,
+        title,
+        description,
+      };
+    });
 
     return NextResponse.json({ goals });
   } catch (e) {
