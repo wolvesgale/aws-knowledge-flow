@@ -25,20 +25,27 @@ const FALLBACK_GOALS: Goal[] = [
 export async function GET() {
   try {
     // Notion クライアント or DB ID が無いとき → ログを出してスタブ返却
-    if (!notion || !NOTION_DB_GOALS) {
-      console.error('[api/goals] Notion client or DB ID missing', {
-        hasNotion: !!notion,
-        dbId: NOTION_DB_GOALS,
-      });
+if (!notion || !NOTION_DB_GOALS) {
+  console.error('[api/goals] Missing env in runtime', {
+    hasNotion: !!notion,
+    dbId: NOTION_DB_GOALS,
+    secretPrefix: process.env.NOTION_SECRET?.slice(0, 8) ?? null,
+  });
 
-      return NextResponse.json(
-        {
-          goals: FALLBACK_GOALS,
-          source: 'fallback_env', // デバッグ用（画面側では未使用）
-        },
-        { status: 200 },
-      );
-    }
+  return NextResponse.json(
+    {
+      goals: FALLBACK_GOALS,
+      source: 'fallback_env',
+      debug: {
+        hasNotion: !!notion,
+        hasDbId: !!NOTION_DB_GOALS,
+        secretPrefix: process.env.NOTION_SECRET?.slice(0, 8) ?? null,
+      },
+    },
+    { status: 200 },
+  );
+}
+
 
     // Notion DB から Goal 一覧を取得
     const res = await notion.databases.query({
