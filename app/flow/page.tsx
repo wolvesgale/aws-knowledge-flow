@@ -1,38 +1,8 @@
 // app/flow/page.tsx
 'use client';
 
-import { useState } from 'react';
-
-type QuestionOption = {
-  value: string;
-  label: string;
-};
-
-type Question = {
-  id: string;
-  text: string;
-  type: 'single_choice' | 'multi_choice' | 'text';
-  options?: QuestionOption[];
-};
-
-type Service = {
-  id: string;
-  name: string;
-  description?: string;
-  docsUrl?: string;
-  tags?: string[];
-};
-
-type FlowNode =
-  | {
-      type: 'question';
-      question: Question;
-    }
-  | {
-      type: 'result';
-      summary: string;
-      services: Service[];
-    };
+import { useEffect, useState } from 'react';
+import type { Question, Service, FlowNode } from '../../lib/flow-logic';
 
 type HistoryItem = {
   question: Question;
@@ -45,78 +15,8 @@ type Goal = {
   description?: string;
 };
 
-// ひとまずスタブ（あとでAPI連携に差し替え）
-const MOCK_GOALS: Goal[] = [
-  {
-    id: 'goal_csv_tool',
-    title: 'CSV変換ツールを実装したい',
-    description: '既存のCSVを整形・加工するツール',
-  },
-  {
-    id: 'goal_ecs_replace',
-    title: 'ECSで既存システムをリプレースしたい',
-    description: 'オンプレ/EC2からECS(Fargate)への移行',
-  },
-];
-
-// これもスタブ：最初の質問と、次のノードを決める簡易ロジック
-const firstQuestion: Question = {
-  id: 'q_env',
-  text: 'どのような環境で利用しますか？',
-  type: 'single_choice',
-  options: [
-    { value: 'dev', label: '検証・開発環境が中心' },
-    { value: 'prod', label: '本番システムとして使いたい' },
-  ],
-};
-
-function getNextNode(history: HistoryItem[]): FlowNode {
-  if (history.length === 0) {
-    return { type: 'question', question: firstQuestion };
-  }
-
-  // 2問目の仮質問
-  if (history.length === 1) {
-    const q2: Question = {
-      id: 'q_db',
-      text: 'データベースはどのように利用する予定ですか？',
-      type: 'single_choice',
-      options: [
-        { value: 'rds', label: 'RDSなどのマネージドDB' },
-        { value: 'ddb', label: 'DynamoDBなどのNoSQL' },
-        { value: 'none', label: '今回はDBを使わない' },
-      ],
-    };
-    return { type: 'question', question: q2 };
-  }
-
-  // 3問目まで答えたら、仮の結果を出す
-  return {
-    type: 'result',
-    summary:
-      '回答内容に基づき、仮の提案結果を表示しています（後でLambda＋Notion連携に差し替え）。',
-    services: [
-      {
-        id: 'svc_ecs',
-        name: 'Amazon ECS on Fargate',
-        description: 'コンテナ本番環境向けのマネージドコンテナ実行基盤です。',
-        docsUrl:
-          'https://docs.aws.amazon.com/AmazonECS/latest/developerguide/',
-        tags: ['Compute', 'コンテナ'],
-      },
-      {
-        id: 'svc_rds',
-        name: 'Amazon RDS',
-        description: 'リレーショナルデータベースをフルマネージドで提供します。',
-        docsUrl: 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/',
-        tags: ['Database', 'RDB'],
-      },
-    ],
-  };
-}
-
 export default function FlowPage() {
-  const [goals] = useState<Goal[]>(MOCK_GOALS);
+  const [goals, setGoals] = useState<Goal[]>([]);
   const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [currentNode, setCurrentNode] = useState<FlowNode | null>(null);
@@ -124,18 +24,58 @@ export default function FlowPage() {
     null,
   );
   const [error, setError] = useState<string | null>(null);
+  const [loadingGoals, setLoadingGoals] = useState(false);
 
-  const startFlow = (goalId: string) => {
+  // ▼ ゴール一覧を API から取得
+  useEffect(() => {
+    const fetchGoals = async () => {
+      try {
+        setLoadingGoals(true);
+        const res = await fetch('/api/goals');
+        if (!res.ok) {
+          throw new Error('failed to fetch goals');
+        }
+        const data = await res.json();
+        setGoals(data.goals ?? []);
+      } catch (e) {
+        console.error(e);
+        setError('ゴール一覧の取得に失敗しました');
+      } finally {
+        setLoadingGoals(false);
+      }
+    };
+
+    fetchGoals();
+  }, []);
+
+  const startFlow = async (goalId: string) => {
     setSelectedGoalId(goalId);
     setHistory([]);
     setError(null);
-    const first = getNextNode([]);
-    setCurrentNode(first);
     setPendingAnswer(null);
+    setCurrentNode(null);
+
+    try {
+      const res = await fetch('/api/flow/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ goalId }),
+      });
+      if (!res.ok) {
+        throw new Error('failed to start flow');
+      }
+      const data = await res.json();
+      setCurrentNode(data.node as FlowNode);
+    } catch (e) {
+      console.error(e);
+      setError('フロー開始時にエラーが発生しました');
+    }
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (!currentNode || currentNode.type !== 'question') return;
+    if (!selectedGoalId) return;
+
     if (pendingAnswer == null || pendingAnswer === '') {
       setError('回答を入力してください');
       return;
@@ -145,12 +85,36 @@ export default function FlowPage() {
       ...history,
       { question: currentNode.question, answer: pendingAnswer },
     ];
+
+    // クライアント側の履歴はUI表示用として保持
     setHistory(newHistory);
     setError(null);
+
+    const answersPayload = newHistory.map((h) => ({
+      questionId: h.question.id,
+      value: h.answer,
+    }));
+
     setPendingAnswer(null);
 
-    const next = getNextNode(newHistory);
-    setCurrentNode(next);
+    try {
+      const res = await fetch('/api/flow/next', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          goalId: selectedGoalId,
+          answers: answersPayload,
+        }),
+      });
+      if (!res.ok) {
+        throw new Error('failed to get next node');
+      }
+      const data = await res.json();
+      setCurrentNode(data.node as FlowNode);
+    } catch (e) {
+      console.error(e);
+      setError('次のステップ取得時にエラーが発生しました');
+    }
   };
 
   const handleRestart = () => {
@@ -241,7 +205,7 @@ export default function FlowPage() {
         <p className="text-sm text-slate-300">{currentNode.summary}</p>
 
         <div className="space-y-3">
-          {currentNode.services.map((s) => (
+          {currentNode.services.map((s: Service) => (
             <div
               key={s.id}
               className="rounded-lg border border-slate-700 bg-slate-900 p-3 shadow-sm"
@@ -333,6 +297,9 @@ export default function FlowPage() {
           やりたいこと（Goal）
         </h2>
         <div className="flex-1 space-y-2 overflow-y-auto text-xs">
+          {loadingGoals && (
+            <div className="text-[11px] text-slate-500">読み込み中…</div>
+          )}
           {goals.map((g) => (
             <button
               key={g.id}

@@ -1,65 +1,95 @@
-import Image from "next/image";
+// app/page.tsx
 
-export default function Home() {
+export default function HomePage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
+    <div className="space-y-6 text-slate-100">
+      {/* ヘッダーセクション */}
+      <section className="rounded-xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-lg font-semibold text-slate-50">
+              AWS Knowledge Flow コンソール
+            </h1>
+            <p className="mt-2 text-sm text-slate-300">
+              「やりたいこと」と「前提条件」から、最適な AWS サービスと学習リソースへ
+              ナビゲートします。
+            </p>
+            <p className="mt-1 text-xs text-slate-400">
+              ※ 現在はモックデータ（CSVツール / ECS リプレース）での PoC 版です。
+              後続で Notion DB ＋ Lambda 連携に置き換えていきます。
+            </p>
+          </div>
+          <div className="flex flex-col items-start gap-2 md:items-end">
             <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+              href="/flow"
+              className="inline-flex items-center gap-2 rounded-md bg-amber-500 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-amber-400"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+              ナレッジフローを開始
+              <span className="text-xs">/flow</span>
+            </a>
+            <span className="text-[11px] text-slate-400">
+              まずは「CSV変換ツール」や「ECSリプレース」のシナリオから体験できます。
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* カードグリッド */}
+      <section className="grid gap-4 md:grid-cols-3">
+        {/* カード1：フロー概要 */}
+        <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-4">
+          <h2 className="text-sm font-semibold text-slate-100">
+            フローの概要
+          </h2>
+          <p className="mt-2 text-xs leading-relaxed text-slate-300">
+            ユーザーは「やりたいこと（Goal）」を選択すると、その Goal
+            に紐づく前提質問（Questions）が順番に表示されます。回答内容に応じて、最終的に
+            Services &amp; Solutions が返される構造です。
+          </p>
+          <ul className="mt-3 list-inside list-disc text-xs text-slate-300">
+            <li>Goal &gt; Questions &gt; Result の 3段構成</li>
+            <li>分岐履歴は右ペインでツリー表示</li>
+            <li>将来的にはユーザーごとのプロファイルも考慮</li>
+          </ul>
+        </div>
+
+        {/* カード2：Notion 連携（スレB 側） */}
+        <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-4">
+          <h2 className="text-sm font-semibold text-slate-100">
+            Notion ナレッジ DB（スレッドB）
+          </h2>
+          <p className="mt-2 text-xs leading-relaxed text-slate-300">
+            Notion 側では、以下 3 つのデータベースを用意します。
+          </p>
+          <ul className="mt-3 list-inside list-disc text-xs text-slate-300">
+            <li>User Goals：やりたいことの一覧</li>
+            <li>Questions：前提条件の質問カタログ</li>
+            <li>Services &amp; Solutions：AWSサービス＋ソリューション</li>
+          </ul>
+          <p className="mt-2 text-xs text-slate-400">
+            これらは Relation
+            で紐づけるだけの「カタログ」として扱い、分岐ロジックは当面 Lambda
+            / Route Handler 側で持ちます。
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        {/* カード3：今後の拡張 */}
+        <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-4">
+          <h2 className="text-sm font-semibold text-slate-100">
+            今後の拡張ロードマップ
+          </h2>
+          <ul className="mt-2 list-inside list-disc text-xs text-slate-300">
+            <li>Notion API 連携による動的な Goal / Question 取得</li>
+            <li>/api/flow/start, /api/flow/next エンドポイントの実装</li>
+            <li>ユーザーごとのプロファイル／既存環境を加味した初期絞り込み</li>
+            <li>学習リソース（Docs / Workshop / Hands-on）へのリンク集約</li>
+          </ul>
+          <p className="mt-2 text-xs text-slate-400">
+            現時点では UI とホスティング基盤（Vercel &amp; Amplify）
+            を先行で整備し、後続のナレッジ設計と連携をスレッドB側で進行します。
+          </p>
         </div>
-      </main>
+      </section>
     </div>
   );
 }
