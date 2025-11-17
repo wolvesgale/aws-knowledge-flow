@@ -10,28 +10,38 @@ type Goal = {
 
 export async function GET() {
   try {
+    // 1) 基本チェック
+    if (!notion) {
+      throw new Error('Notion client is not initialized (check NOTION_SECRET).');
+    }
+    if (!NOTION_DB_GOALS) {
+      throw new Error(
+        'NOTION_DATABASE_GOALS_ID is not set. Check your environment variables.',
+      );
+    }
+
+    // 2) DB クエリ
     const res = await notion.databases.query({
       database_id: NOTION_DB_GOALS,
-      // 並び順が必要になったら Notion 側に "Order" 数値プロパティを作り、
-      // ここで sorts に追加する感じでOK
     });
 
+    // 3) 結果をGoal型にマッピング
     const goals: Goal[] = res.results.map((page: any) => {
       const props = page.properties;
 
-      // タイトル系プロパティ（Name or Goal Name を優先）
+      // タイトル: "Name" か "Goal Name" を優先
       const titleProp = props['Name'] ?? props['Goal Name'];
       const title =
         titleProp?.title?.[0]?.plain_text ??
         titleProp?.rich_text?.[0]?.plain_text ??
         'Untitled';
 
-      // 説明（Description があれば）
+      // 説明: "Description" があれば
       const descProp = props['Description'];
       const description =
         descProp?.rich_text?.[0]?.plain_text ?? undefined;
 
-      // Goal ID があればそれを使い、なければページIDをそのまま
+      // Goal ID: あればそれを使う / なければページID
       const goalIdProp = props['Goal ID'];
       const goalId =
         goalIdProp?.rich_text?.[0]?.plain_text ??
@@ -45,13 +55,16 @@ export async function GET() {
     });
 
     return NextResponse.json({ goals });
-  } catch (e) {
-    console.error('Notion goals fetch error', e);
+  } catch (e: any) {
+    // ここで Notion SDK のエラー詳細もログに出す
+    console.error('Notion goals fetch error:', JSON.stringify(e, null, 2));
+
     return NextResponse.json(
       {
         error: {
           code: 'NOTION_ERROR',
-          message: 'Notionからゴール一覧の取得に失敗しました。',
+          message: e?.message ?? 'Unknown Notion error',
+          detail: e?.body ?? null,
         },
       },
       { status: 500 },
