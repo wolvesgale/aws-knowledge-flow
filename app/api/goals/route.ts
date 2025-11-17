@@ -8,7 +8,7 @@ type Goal = {
   description?: string;
 };
 
-// Notion が使えないときの保険（今まで使っていたスタブ）
+// Notion が使えないときの保険（これまで使っていたスタブ）
 const FALLBACK_GOALS: Goal[] = [
   {
     id: 'UC001',
@@ -23,29 +23,29 @@ const FALLBACK_GOALS: Goal[] = [
 ];
 
 export async function GET() {
-  // Notion クライアント or DB ID が無いとき → ログを出してスタブ返却
-  if (!notion || !NOTION_DB_GOALS) {
-    console.error('[api/goals] Notion client or DB ID missing', {
-      hasNotion: !!notion,
-      dbId: NOTION_DB_GOALS,
-    });
-
-    return NextResponse.json(
-      {
-        goals: FALLBACK_GOALS,
-        error:
-          'NOTION_SECRET または NOTION_DATABASE_GOALS_ID が設定されていないため、スタブのゴールを返しています。',
-      },
-      { status: 200 },
-    );
-  }
-
   try {
+    // Notion クライアント or DB ID が無いとき → ログを出してスタブ返却
+    if (!notion || !NOTION_DB_GOALS) {
+      console.error('[api/goals] Notion client or DB ID missing', {
+        hasNotion: !!notion,
+        dbId: NOTION_DB_GOALS,
+      });
+
+      return NextResponse.json(
+        {
+          goals: FALLBACK_GOALS,
+          source: 'fallback_env', // デバッグ用（画面側では未使用）
+        },
+        { status: 200 },
+      );
+    }
+
+    // Notion DB から Goal 一覧を取得
     const res = await notion.databases.query({
       database_id: NOTION_DB_GOALS,
       sorts: [
         {
-          property: 'Goal ID', // Notion 側のプロパティ名
+          property: 'Goal ID', // Notion 側のプロパティ名に合わせる
           direction: 'ascending',
         },
       ],
@@ -76,14 +76,22 @@ export async function GET() {
       return { id, title, description };
     });
 
-    return NextResponse.json({ goals }, { status: 200 });
+    return NextResponse.json(
+      {
+        goals,
+        source: 'notion', // デバッグ用
+        count: goals.length,
+      },
+      { status: 200 },
+    );
   } catch (err: any) {
     console.error('[api/goals] Notion query error', err);
 
+    // エラー時もスタブで動作だけはさせる
     return NextResponse.json(
       {
         goals: FALLBACK_GOALS,
-        error: `Notion query failed: ${err?.message ?? String(err)}`,
+        source: 'fallback_error', // デバッグ用
       },
       { status: 200 },
     );
