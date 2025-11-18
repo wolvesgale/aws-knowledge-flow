@@ -1,0 +1,21 @@
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - npm ci
+        - echo "NOTION_SECRET=$NOTION_SECRET" >> .env.production
+        - echo "NOTION_DATABASE_GOALS_ID=$NOTION_DATABASE_GOALS_ID" >> .env.production
+        - echo "NOTION_DATABASE_SERVICES_ID=$NOTION_DATABASE_SERVICES_ID" >> .env.production
+        - echo "NOTION_DATABASE_QUESTIONS_ID=$NOTION_DATABASE_QUESTIONS_ID" >> .env.production
+    build:
+      commands:
+        - npm run build
+  artifacts:
+    baseDirectory: .next
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - node_modules/**/*
+      - .next/cache/**/*

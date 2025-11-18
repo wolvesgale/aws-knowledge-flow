@@ -48,40 +48,49 @@ if (!notion || !NOTION_DB_GOALS) {
 
 
     // Notion DB から Goal 一覧を取得
-    const res = await notion.databases.query({
-      database_id: NOTION_DB_GOALS,
-      sorts: [
-        {
-          property: 'Goal ID', // Notion 側のプロパティ名に合わせる
-          direction: 'ascending',
-        },
-      ],
-    });
+const res = await notion.databases.query({
+  database_id: NOTION_DB_GOALS,
+  sorts: [
+    {
+      property: 'Goal ID',
+      direction: 'ascending',
+    },
+  ],
+});
 
-    const goals: Goal[] = res.results.map((page: any) => {
-      const props = page.properties;
 
-      const titleProp = props['Goal Name'];
-      const descProp = props['Description'];
-      const idProp = props['Goal ID'];
+// app/api/goals/route.ts の Notion から goals を組み立てる部分
 
-      const title =
-        titleProp?.title?.[0]?.plain_text ??
-        titleProp?.rich_text?.[0]?.plain_text ??
-        'No title';
+const goals = res.results.map((page) => {
+  // 1. タイトル（Goal Name）
+  const titleProp: any = (page as any).properties['Goal Name'];
+  const title =
+    titleProp?.type === 'title' && titleProp.title?.length > 0
+      ? titleProp.title[0].plain_text
+      : 'No title';
 
-      const description =
-        descProp?.rich_text?.[0]?.plain_text ??
-        descProp?.title?.[0]?.plain_text ??
-        undefined;
+  // 2. 説明（Description）※あれば
+  const descProp: any = (page as any).properties['Description'];
+  const description =
+    descProp?.type === 'rich_text' && descProp.rich_text?.length > 0
+      ? descProp.rich_text[0].plain_text
+      : '';
 
-      const id =
-        idProp?.rich_text?.[0]?.plain_text ??
-        idProp?.title?.[0]?.plain_text ??
-        page.id;
+  // 3. 並び順（Goal ID）※必要なら number として読む
+  const orderProp: any = (page as any).properties['Goal ID'];
+  const order =
+    orderProp?.type === 'number' && typeof orderProp.number === 'number'
+      ? orderProp.number
+      : 0;
 
-      return { id, title, description };
-    });
+  return {
+    id: page.id,
+    title,
+    description,
+    order,
+  };
+});
+
 
     return NextResponse.json(
       {
