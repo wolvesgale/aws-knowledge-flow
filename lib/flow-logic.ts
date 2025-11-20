@@ -31,9 +31,10 @@ export type FlowNode =
       services: Service[];
     };
 
-export type Answer = {
-  questionId: string;
-  value: string | string[];
+// Flow 用の履歴アイテム型（page.tsx 側と同じ形）
+export type FlowHistoryItem = {
+  question: Question;
+  answer: string | string[];
 };
 
 // ★ ここは今まで page.tsx にいた firstQuestion / getNextNode を移植
@@ -47,15 +48,15 @@ const firstQuestion: Question = {
   ],
 };
 
-export function getNextNode(answers: Answer[]): FlowNode {
-  // answer の数だけ見て、これまでと同じ挙動を再現する簡易ロジック
+export function getNextNode(history: FlowHistoryItem[]): FlowNode {
+  // history の長さだけ見て、これまでと同じ挙動を再現する簡易ロジック
 
-  if (answers.length === 0) {
+  if (history.length === 0) {
     // 最初の質問
     return { type: 'question', question: firstQuestion };
   }
 
-  if (answers.length === 1) {
+  if (history.length === 1) {
     // 2問目の仮質問
     const q2: Question = {
       id: 'q_db',
@@ -70,7 +71,7 @@ export function getNextNode(answers: Answer[]): FlowNode {
     return { type: 'question', question: q2 };
   }
 
-  // 3問目以降 → 結果を返す（今は固定）
+  // 2問目まで答えたら、仮の結果を出す（今は固定）
   const services: Service[] = [
     {
       id: 'svc_ecs',
@@ -100,7 +101,7 @@ export function getNextNode(answers: Answer[]): FlowNode {
 /**
  * ★ 将来 Notion を使うとき
  *
- * - answers を見て Notion から次の Question を取ってくる
+ * - history を見て Notion から次の Question を取ってくる
  * - もしくは Services & Solutions DB から結果を組み立てる
  *
  * という処理を、このファイル内の getNextNode を書き換えるだけで済む。

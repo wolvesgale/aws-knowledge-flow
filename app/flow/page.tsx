@@ -2,37 +2,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-
-type QuestionOption = {
-  value: string;
-  label: string;
-};
-
-type Question = {
-  id: string;
-  text: string;
-  type: 'single_choice' | 'multi_choice' | 'text';
-  options?: QuestionOption[];
-};
-
-type Service = {
-  id: string;
-  name: string;
-  description?: string;
-  docsUrl?: string;
-  tags?: string[];
-};
-
-type FlowNode =
-  | {
-      type: 'question';
-      question: Question;
-    }
-  | {
-      type: 'result';
-      summary: string;
-      services: Service[];
-    };
+import {
+  getNextNode,
+  type Question,
+  type QuestionOption,
+  type Service,
+  type FlowNode,
+} from '../../lib/flow-logic';
 
 type HistoryItem = {
   question: Question;
@@ -58,62 +34,6 @@ const FALLBACK_GOALS: Goal[] = [
     description: 'オンプレ/EC2からECS(Fargate)への移行',
   },
 ];
-
-// これもスタブ：最初の質問と、次のノードを決める簡易ロジック
-const firstQuestion: Question = {
-  id: 'q_env',
-  text: 'どのような環境で利用しますか？',
-  type: 'single_choice',
-  options: [
-    { value: 'dev', label: '検証・開発環境が中心' },
-    { value: 'prod', label: '本番システムとして使いたい' },
-  ],
-};
-
-function getNextNode(history: HistoryItem[]): FlowNode {
-  if (history.length === 0) {
-    return { type: 'question', question: firstQuestion };
-  }
-
-  // 2問目の仮質問
-  if (history.length === 1) {
-    const q2: Question = {
-      id: 'q_db',
-      text: 'データベースはどのように利用する予定ですか？',
-      type: 'single_choice',
-      options: [
-        { value: 'rds', label: 'RDSなどのマネージドDB' },
-        { value: 'ddb', label: 'DynamoDBなどのNoSQL' },
-        { value: 'none', label: '今回はDBを使わない' },
-      ],
-    };
-    return { type: 'question', question: q2 };
-  }
-
-  // 3問目まで答えたら、仮の結果を出す
-  return {
-    type: 'result',
-    summary:
-      '回答内容に基づき、仮の提案結果を表示しています（後でLambda＋Notion連携に差し替え）。',
-    services: [
-      {
-        id: 'svc_ecs',
-        name: 'Amazon ECS on Fargate',
-        description: 'コンテナ本番環境向けのマネージドコンテナ実行基盤です。',
-        docsUrl:
-          'https://docs.aws.amazon.com/AmazonECS/latest/developerguide/',
-        tags: ['Compute', 'コンテナ'],
-      },
-      {
-        id: 'svc_rds',
-        name: 'Amazon RDS',
-        description: 'リレーショナルデータベースをフルマネージドで提供します。',
-        docsUrl: 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/',
-        tags: ['Database', 'RDB'],
-      },
-    ],
-  };
-}
 
 export default function FlowPage() {
   // ★ ゴール一覧は API から取得。初期値はスタブ。
@@ -383,7 +303,9 @@ export default function FlowPage() {
         {/* 取得状況のミニ表示 */}
         <div className="mb-2 text-[11px] text-slate-500">
           {goalsLoading && 'Notionからゴールを取得中…'}
-          {!goalsLoading && goalsSource === 'notion' && 'Notion DB から取得しました'}
+          {!goalsLoading &&
+            goalsSource === 'notion' &&
+            'Notion DB から取得しました'}
           {!goalsLoading &&
             goalsSource &&
             goalsSource !== 'notion' &&
