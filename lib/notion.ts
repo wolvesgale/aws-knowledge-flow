@@ -1,13 +1,23 @@
 // lib/notion.ts
-
 import { Client } from '@notionhq/client';
 
 const NOTION_SECRET = process.env.NOTION_SECRET!;
-const NOTION_DB_GOALS = process.env.NOTION_DATABASE_GOALS_ID!;
-const NOTION_DB_QUESTIONS = process.env.NOTION_DATABASE_QUESTIONS_ID!;
-const NOTION_DB_SERVICES = process.env.NOTION_DATABASE_SERVICES_ID!;
 
-export const notion = new Client({ auth: NOTION_SECRET });
+// --- Goals
+export const NOTION_DB_GOALS =
+  process.env.NOTION_DATABASE_GOALS_ID!;
+
+// --- Questions
+export const NOTION_DB_QUESTIONS =
+  process.env.NOTION_DATABASE_QUESTIONS_ID!;
+
+// --- Services（★これが今回追加した部分）
+export const NOTION_DB_SERVICES =
+  process.env.NOTION_DATABASE_SERVICES_ID!;
+
+export const notion = new Client({
+  auth: NOTION_SECRET,
+});
 
 // 既存: Goals
 export async function fetchGoalsFromNotion() {
@@ -113,62 +123,75 @@ export async function fetchQuestionsFromNotion(goalId?: number) {
   return questions;
 }
 
-// 追加: Services
-export async function fetchServicesFromNotion(goalId?: number) {
-  const filter =
-    typeof goalId === 'number'
-      ? {
-          property: 'Goal ID',
-          number: { equals: goalId },
-        }
-      : undefined;
+// Services & Solutions DB からサービス一覧を取得
+// goalId を指定すると「Related Goals にそのIDを含むもの」に絞り込み
+export async function fetchServicesFromNotion(goalId?: string) {
+  if (!NOTION_DB_SERVICES || !NOTION_SECRET) {
+    console.warn('[notion] services DB env is missing');
+    return [];
+  }
 
-  const res = await notion.databases.query({
+  const filters: any[] = [];
+
+  if (goalId) {
+    // Related Goals (relation) に goalId を含む行だけ
+    filters.push({
+      property: 'Related Goals',
+      relation: {
+        contains: goalId,
+      },
+    });
+  }
+
+  const query: any = {
     database_id: NOTION_DB_SERVICES,
-    filter,
-    sorts: [{ property: 'Service Name', direction: 'ascending' }],
-  });
+    sorts: [
+      {
+        property: 'Service ID',
+        direction: 'ascending',
+      },
+    ],
+  };
 
-  const services = res.results.map((page: any) => {
-    const nameProp = page.properties['Service Name'];
+  if (filters.length === 1) {
+    query.filter = filters[0];
+  }
+
+  const res = await notion.databases.query(query);
+
+  return res.results.map((page: any) => {
+    const props = page.properties ?? {};
+
+    const nameProp = props['Service Name'];
+    const summaryProp = props['Summary'];
+    const docsProp = props['Official Docs'];
+    const tagsProp = props['Tags'];
+
     const name =
       nameProp?.type === 'title' && nameProp.title?.length > 0
         ? nameProp.title[0].plain_text
         : 'No title';
 
-    const descProp = page.properties['Description'];
     const description =
-      descProp?.type === 'rich_text' && descProp.rich_text?.length > 0
-        ? descProp.rich_text[0].plain_text
+      summaryProp?.type === 'rich_text' &&
+      summaryProp.rich_text?.length > 0
+        ? summaryProp.rich_text[0].plain_text
         : '';
 
-    const goalIdProp = page.properties['Goal ID'];
-    const goalIdValue =
-      goalIdProp?.type === 'number' && typeof goalIdProp.number === 'number'
-        ? goalIdProp.number
-        : null;
-
-    const urlProp = page.properties['Docs URL'];
     const docsUrl =
-      urlProp?.type === 'url' && typeof urlProp.url === 'string'
-        ? urlProp.url
-        : '';
+      docsProp?.type === 'url' ? docsProp.url ?? undefined : undefined;
 
-    const tagsProp = page.properties['Tags'];
     const tags =
-      tagsProp?.type === 'multi_select' && tagsProp.multi_select
+      tagsProp?.type === 'multi_select'
         ? tagsProp.multi_select.map((t: any) => t.name)
         : [];
 
     return {
       id: page.id,
-      goalId: goalIdValue,
       name,
       description,
       docsUrl,
       tags,
     };
   });
-
-  return services;
 }
