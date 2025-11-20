@@ -259,11 +259,8 @@ export default function FlowPage() {
       );
     }
 
-    // result ノード（Services は Notion 取得があれば上書き）
-    const servicesToShow =
-      servicesOverride && servicesOverride.length > 0
-        ? servicesOverride
-        : currentNode.services;
+    // result
+    const servicesToShow = servicesOverride ?? currentNode.services;
 
     return (
       <div className="space-y-4">
@@ -271,22 +268,22 @@ export default function FlowPage() {
           提案結果（Services &amp; Solutions）
         </h2>
 
+        {/* Notion から取れているかのステータス表示 */}
         <div className="text-[11px] text-slate-500">
-          {servicesLoading && 'Notion からサービス一覧を取得中…'}
+          {servicesLoading && 'Services を Notion から取得中…'}
           {!servicesLoading &&
             servicesSource === 'notion' &&
-            'Notion DB から取得しました'}
+            'Notion の Services & Solutions DB から取得しました'}
           {!servicesLoading &&
             servicesSource &&
             servicesSource !== 'notion' &&
             'Notion 取得に失敗したためスタブを表示しています'}
+          {servicesError && (
+            <span className="ml-2 text-red-400">
+              Services取得エラー: {servicesError}
+            </span>
+          )}
         </div>
-
-        {servicesError && (
-          <div className="text-[11px] text-red-400">
-            Services取得エラー: {servicesError}
-          </div>
-        )}
 
         <p className="text-sm text-slate-300">{currentNode.summary}</p>
 
@@ -341,7 +338,7 @@ export default function FlowPage() {
         </div>
       </div>
     );
-  };
+  }; 
 
   const renderHistory = () => {
     if (history.length === 0) {
