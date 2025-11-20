@@ -56,23 +56,20 @@ export async function GET(req: Request) {
       );
     }
 
-    // Goal が指定されていれば Related Goals で絞り込み
-    const filter =
-      goalId != null
-        ? {
-            property: 'Related Goals',
-            relation: {
-              contains: goalId,
-            },
-          }
-        : undefined;
-
+    // goalId フィルタは一旦外して、素のクエリが通るか確認
     const res = await notion.databases.query({
       database_id: NOTION_DB_SERVICES,
-      filter,
+      // goalId が string なので filter の条件がおかしい可能性は消しておく
+      // filter は一時的にコメントアウト
+      // filter: goalId
+      //   ? {
+      //       property: 'Related Goals',
+      //       relation: { contains: goalId },
+      //     }
+      //   : undefined,
       sorts: [
         {
-          property: 'Service ID', // ← Notion 側と完全一致させる
+          property: 'Service ID',
           direction: 'ascending',
         },
       ],
@@ -81,22 +78,17 @@ export async function GET(req: Request) {
     const services: Service[] = res.results.map((page: any) => {
       const props = page.properties;
 
-      // ★ 列名に依存せず「title 型のプロパティ」を自動検出
-      const titleProp: any = Object.values(props).find(
-        (p: any) => p && p.type === 'title',
-      );
-
+      const nameProp = props['Service Name'];
       const name =
-        titleProp?.title && Array.isArray(titleProp.title) && titleProp.title.length > 0
-          ? titleProp.title[0].plain_text
+        nameProp?.type === 'title' && nameProp.title?.length > 0
+          ? nameProp.title[0].plain_text
           : 'No name';
 
       const summaryProp = props['Summary'];
       const description =
         summaryProp?.type === 'rich_text' &&
-        Array.isArray(summaryProp.rich_text) &&
-        summaryProp.rich_text.length > 0
-          ? summaryProp.rich_text.map((t: any) => t.plain_text).join('')
+        summaryProp.rich_text?.length > 0
+          ? summaryProp.rich_text[0].plain_text
           : '';
 
       const docsProp = props['Official Docs'];
@@ -127,16 +119,14 @@ export async function GET(req: Request) {
       { status: 200 },
     );
   } catch (err: any) {
+    // ★ ここでエラーの中身もレスポンスに含める
     console.error('[api/services] Notion query error', err);
 
-    // ここでも 500 ではなく 200 + スタブで返す
     return NextResponse.json(
       {
         services: FALLBACK_SERVICES,
         source: 'fallback_error',
-        error:
-          err?.message ??
-          (typeof err === 'string' ? err : 'unknown_notions_error'),
+        error: err?.body ?? err?.message ?? String(err),
       },
       { status: 200 },
     );
