@@ -31,6 +31,11 @@ export type FlowNode =
       services: Service[];
     };
 
+export type Answer = {
+  questionId: string;
+  value: string | string[];
+};
+
 // Flow 用の履歴アイテム型（page.tsx 側と同じ形）
 export type FlowHistoryItem = {
   question: Question;
