@@ -31,8 +31,10 @@ const FALLBACK_SERVICES: Service[] = [
 
 export async function GET(req: Request) {
   try {
-    const { searchParams } = new URL(req.url);
-    const goalId = searchParams.get('goalId') ?? undefined;
+    // goalId は今は使わない（将来のために残しておいてOK）
+    // const { searchParams } = new URL(req.url);
+    // const goalId = searchParams.get('goalId') ?? undefined;
+
 
     // env 不足時は 200 + スタブで返す（/api/goals と同じ思想）
     if (!notion || !NOTION_DB_SERVICES) {
@@ -59,14 +61,12 @@ export async function GET(req: Request) {
     // Notion Services & Solutions DB を Goal でフィルタ
     const res = await notion.databases.query({
       database_id: NOTION_DB_SERVICES,
-      filter: goalId
-        ? {
-            property: 'Related Goals',
-            relation: {
-              contains: goalId,
-            },
-          }
-        : undefined,
+      // filter: goalId
+      //   ? {
+      //       property: 'Related Goals',
+      //       relation: { contains: goalId },
+      //     }
+      //   : undefined,
       sorts: [
         {
           property: 'Service ID',
