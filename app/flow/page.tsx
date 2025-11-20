@@ -50,6 +50,14 @@ export default function FlowPage() {
   );
   const [error, setError] = useState<string | null>(null);
 
+  // Services 用（Notion からの上書き）
+  const [servicesOverride, setServicesOverride] = useState<Service[] | null>(
+    null,
+  );
+  const [servicesSource, setServicesSource] = useState<string | null>(null);
+  const [servicesLoading, setServicesLoading] = useState(false);
+  const [servicesError, setServicesError] = useState<string | null>(null);
+
   // --- Goals を /api/goals から取得 ---
   useEffect(() => {
     let cancelled = false;
@@ -92,11 +100,63 @@ export default function FlowPage() {
     };
   }, []);
 
+  // --- 結果ノード表示時に Services を Notion から取得 ---
+  useEffect(() => {
+    if (!selectedGoalId || !currentNode || currentNode.type !== 'result') {
+      setServicesOverride(null);
+      setServicesSource(null);
+      setServicesError(null);
+      setServicesLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchServices = async () => {
+      try {
+        setServicesLoading(true);
+        setServicesError(null);
+
+        const res = await fetch(
+          `/api/services?goalId=${encodeURIComponent(selectedGoalId)}`,
+        );
+        if (!res.ok) {
+          throw new Error(`/api/services failed: ${res.status}`);
+        }
+
+        const data = await res.json();
+        const apiServices: Service[] = data.services ?? [];
+
+        if (!cancelled && apiServices.length > 0) {
+          setServicesOverride(apiServices);
+          setServicesSource(data.source ?? 'notion');
+        }
+      } catch (e: any) {
+        console.error('failed to fetch services', e);
+        if (!cancelled) {
+          setServicesError(e?.message ?? String(e));
+          setServicesOverride(null);
+          setServicesSource('fallback_error');
+        }
+      } finally {
+        if (!cancelled) {
+          setServicesLoading(false);
+        }
+      }
+    };
+
+    fetchServices();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedGoalId, currentNode]);
+
   const startFlow = (goalId: string) => {
     setSelectedGoalId(goalId);
     setHistory([]);
     setError(null);
-    const first = getNextNode([]);
+    const first = getNextNode([]); // 空履歴から最初の質問を取得
     setCurrentNode(first);
     setPendingAnswer(null);
   };
@@ -153,7 +213,7 @@ export default function FlowPage() {
 
           {q.type === 'single_choice' && q.options && (
             <div className="space-y-2">
-              {q.options.map((opt) => (
+              {q.options.map((opt: QuestionOption) => (
                 <label
                   key={opt.value}
                   className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm hover:bg-slate-700"
@@ -199,16 +259,39 @@ export default function FlowPage() {
       );
     }
 
-    // result
+    // result ノード（Services は Notion 取得があれば上書き）
+    const servicesToShow =
+      servicesOverride && servicesOverride.length > 0
+        ? servicesOverride
+        : currentNode.services;
+
     return (
       <div className="space-y-4">
         <h2 className="text-lg font-semibold text-slate-100">
           提案結果（Services &amp; Solutions）
         </h2>
+
+        <div className="text-[11px] text-slate-500">
+          {servicesLoading && 'Notion からサービス一覧を取得中…'}
+          {!servicesLoading &&
+            servicesSource === 'notion' &&
+            'Notion DB から取得しました'}
+          {!servicesLoading &&
+            servicesSource &&
+            servicesSource !== 'notion' &&
+            'Notion 取得に失敗したためスタブを表示しています'}
+        </div>
+
+        {servicesError && (
+          <div className="text-[11px] text-red-400">
+            Services取得エラー: {servicesError}
+          </div>
+        )}
+
         <p className="text-sm text-slate-300">{currentNode.summary}</p>
 
         <div className="space-y-3">
-          {currentNode.services.map((s) => (
+          {servicesToShow.map((s) => (
             <div
               key={s.id}
               className="rounded-lg border border-slate-700 bg-slate-900 p-3 shadow-sm"
