@@ -3,49 +3,20 @@ import { NextResponse } from 'next/server';
 import {
   getNextNode,
   type FlowNode,
-  type FlowHistoryItem,
+  type FlowHistoryItem, // ← ① 上で alias を復活させたのでこのまま使える
 } from '../../../../lib/flow-logic';
 
 type NextRequestBody = {
-  goalId?: string;
-  answers?: {
-    questionId: string;
-    value: string | string[];
-  }[];
-};
-
-type NextResponseBody = {
-  node: FlowNode;
+  history: FlowHistoryItem[];
 };
 
 export async function POST(req: Request) {
-  let body: NextRequestBody;
+  const body = (await req.json()) as NextRequestBody;
 
-  try {
-    body = (await req.json()) as NextRequestBody;
-  } catch (e) {
-    return NextResponse.json(
-      { error: 'Invalid JSON body' },
-      { status: 400 },
-    );
-  }
+  // ★ getNextNode は Promise なので await する
+  const next = await getNextNode(body.history);
 
-  const answers = body.answers ?? [];
-
-  // Answer[] → FlowHistoryItem[] に変換
-  const history: FlowHistoryItem[] = answers.map((a) => ({
-    // サーバー側では質問文までは不要なので最低限のスタブでOK
-    question: {
-      id: a.questionId,
-      text: '',
-      type: 'single_choice',
-      options: [],
-    },
-    answer: a.value,
-  }));
-
-  const node = getNextNode(history);
-  const resBody: NextResponseBody = { node };
-
-  return NextResponse.json(resBody);
+  return NextResponse.json<{ node: FlowNode | null }>({
+    node: next,
+  });
 }

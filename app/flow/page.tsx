@@ -36,18 +36,20 @@ const FALLBACK_GOALS: Goal[] = [
 ];
 
 export default function FlowPage() {
-  // ★ ゴール一覧は API から取得。初期値はスタブ。
+  // Goals
   const [goals, setGoals] = useState<Goal[]>(FALLBACK_GOALS);
   const [goalsSource, setGoalsSource] = useState<string | null>(null);
   const [goalsLoading, setGoalsLoading] = useState<boolean>(true);
   const [goalsError, setGoalsError] = useState<string | null>(null);
 
   const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
+
+  // 質問フロー
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [currentNode, setCurrentNode] = useState<FlowNode | null>(null);
-  const [pendingAnswer, setPendingAnswer] = useState<string | string[] | null>(
-    null,
-  );
+  const [pendingAnswer, setPendingAnswer] = useState<
+    string | string[] | null
+  >(null);
   const [error, setError] = useState<string | null>(null);
 
   // Services 用（Notion からの上書き）
@@ -152,16 +154,19 @@ export default function FlowPage() {
     };
   }, [selectedGoalId, currentNode]);
 
-  const startFlow = (goalId: string) => {
+  // ゴール選択時にフロー開始（Routing版）
+  const startFlow = async (goalId: string) => {
     setSelectedGoalId(goalId);
     setHistory([]);
     setError(null);
-    const first = getNextNode([]); // 空履歴から最初の質問を取得
+
+    const first = await getNextNode([]); // 空履歴から最初の質問を取得（Routing側で Questions DB の先頭を返す）
     setCurrentNode(first);
     setPendingAnswer(null);
   };
 
-  const handleNext = () => {
+  // 「次へ」押下時（Routing版）
+  const handleNext = async () => {
     if (!currentNode || currentNode.type !== 'question') return;
     if (pendingAnswer == null || pendingAnswer === '') {
       setError('回答を入力してください');
@@ -176,7 +181,7 @@ export default function FlowPage() {
     setError(null);
     setPendingAnswer(null);
 
-    const next = getNextNode(newHistory);
+    const next = await getNextNode(newHistory);
     setCurrentNode(next);
   };
 
@@ -259,7 +264,7 @@ export default function FlowPage() {
       );
     }
 
-    // result
+    // result ノード
     const servicesToShow = servicesOverride ?? currentNode.services;
 
     return (
@@ -338,7 +343,7 @@ export default function FlowPage() {
         </div>
       </div>
     );
-  }; 
+  };
 
   const renderHistory = () => {
     if (history.length === 0) {
@@ -423,7 +428,7 @@ export default function FlowPage() {
 
       {/* 中央：現在のノード */}
       <main className="flex w-2/4 flex-col rounded-lg border border-slate-800 bg-slate-900 p-4 shadow-sm">
-        <div className="mb-2 flex items-center justify-between">
+        <div className="mb-2 flex items中心 justify-between">
           <h1 className="text-sm font-semibold text-slate-100">
             ナレッジフロー（AWSナビゲーション）
           </h1>

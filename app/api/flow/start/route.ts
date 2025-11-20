@@ -6,16 +6,21 @@ import {
   type FlowHistoryItem,
 } from '../../../../lib/flow-logic';
 
-type StartResponseBody = {
-  node: FlowNode;
+type StartRequestBody = {
+  history?: FlowHistoryItem[];
 };
 
-// 最初の質問を返すだけのエンドポイント
-export async function GET() {
-  // まだ履歴はないので空配列
-  const history: FlowHistoryItem[] = [];
+type StartResponseBody = {
+  node: FlowNode | null;
+};
 
-  const node = getNextNode(history);
+export async function POST(req: Request) {
+  const body = (await req.json()) as StartRequestBody;
+  const history: FlowHistoryItem[] = body.history ?? [];
+
+  // ★ Promise を返すので await が必要
+  const node = await getNextNode(history);
+
   const resBody: StartResponseBody = { node };
 
   return NextResponse.json(resBody);

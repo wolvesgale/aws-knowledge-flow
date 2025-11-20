@@ -15,6 +15,9 @@ export const NOTION_DB_QUESTIONS =
 export const NOTION_DB_SERVICES =
   process.env.NOTION_DATABASE_SERVICES_ID!;
 
+export const NOTION_DB_ROUTING_RULES =
+  process.env.NOTION_DATABASE_ROUTING_RULES_ID!;
+
 export const notion = new Client({
   auth: NOTION_SECRET,
 });

@@ -1,4 +1,5 @@
 // lib/flow-logic.ts
+import { decideNextNode, type RoutingRule } from './routing';
 
 export type QuestionOption = {
   value: string;
@@ -20,6 +21,12 @@ export type Service = {
   tags?: string[];
 };
 
+export type Goal = {
+  id: string;
+  title: string;
+  description?: string;
+};
+
 export type FlowNode =
   | {
       type: 'question';
@@ -29,85 +36,107 @@ export type FlowNode =
       type: 'result';
       summary: string;
       services: Service[];
+      // ゴール情報も必要ならここに載せる（page.tsx では使っていないので optional）
+      goals?: Goal[];
     };
 
-export type Answer = {
-  questionId: string;
-  value: string | string[];
-};
-
-// Flow 用の履歴アイテム型（page.tsx 側と同じ形）
-export type FlowHistoryItem = {
+// page.tsx 側と同じ履歴型をここでも定義しておく
+export type HistoryItem = {
   question: Question;
   answer: string | string[];
 };
+export type FlowHistoryItem = HistoryItem;
 
-// ★ ここは今まで page.tsx にいた firstQuestion / getNextNode を移植
-const firstQuestion: Question = {
-  id: 'q_env',
-  text: 'どのような環境で利用しますか？',
-  type: 'single_choice',
-  options: [
-    { value: 'dev', label: '検証・開発環境が中心' },
-    { value: 'prod', label: '本番システムとして使いたい' },
-  ],
-};
-
-export function getNextNode(history: FlowHistoryItem[]): FlowNode {
-  // history の長さだけ見て、これまでと同じ挙動を再現する簡易ロジック
-
-  if (history.length === 0) {
-    // 最初の質問
-    return { type: 'question', question: firstQuestion };
+// Routing Rules を /api/routing から取得
+async function fetchRoutingRules(): Promise<RoutingRule[]> {
+  try {
+    const res = await fetch('/api/routing');
+    if (!res.ok) {
+      console.error('fetchRoutingRules failed', res.status);
+      return [];
+    }
+    const json = await res.json();
+    return (json.rules ?? []) as RoutingRule[];
+  } catch (err) {
+    console.error('fetchRoutingRules error', err);
+    return [];
   }
-
-  if (history.length === 1) {
-    // 2問目の仮質問
-    const q2: Question = {
-      id: 'q_db',
-      text: 'データベースはどのように利用する予定ですか？',
-      type: 'single_choice',
-      options: [
-        { value: 'rds', label: 'RDSなどのマネージドDB' },
-        { value: 'ddb', label: 'DynamoDBなどのNoSQL' },
-        { value: 'none', label: '今回はDBを使わない' },
-      ],
-    };
-    return { type: 'question', question: q2 };
-  }
-
-  // 2問目まで答えたら、仮の結果を出す（今は固定）
-  const services: Service[] = [
-    {
-      id: 'svc_ecs',
-      name: 'Amazon ECS on Fargate',
-      description: 'コンテナ本番環境向けのマネージドコンテナ実行基盤です。',
-      docsUrl:
-        'https://docs.aws.amazon.com/AmazonECS/latest/developerguide/',
-      tags: ['Compute', 'コンテナ'],
-    },
-    {
-      id: 'svc_rds',
-      name: 'Amazon RDS',
-      description: 'リレーショナルデータベースをフルマネージドで提供します。',
-      docsUrl: 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/',
-      tags: ['Database', 'RDB'],
-    },
-  ];
-
-  return {
-    type: 'result',
-    summary:
-      '回答内容に基づき、仮の提案結果を表示しています（後でLambda＋Notion連携に差し替え）。',
-    services,
-  };
 }
 
-/**
- * ★ 将来 Notion を使うとき
- *
- * - history を見て Notion から次の Question を取ってくる
- * - もしくは Services & Solutions DB から結果を組み立てる
- *
- * という処理を、このファイル内の getNextNode を書き換えるだけで済む。
- */
+// Questions を /api/questions から取得
+async function fetchQuestions(): Promise<Question[]> {
+  const res = await fetch('/api/questions');
+  if (!res.ok) {
+    console.error('fetchQuestions failed', res.status);
+    return [];
+  }
+  const json = await res.json();
+  return (json.questions ?? []) as Question[];
+}
+
+// Goals を /api/goals から取得
+async function fetchGoals(): Promise<Goal[]> {
+  const res = await fetch('/api/goals');
+  if (!res.ok) {
+    console.error('fetchGoals failed', res.status);
+    return [];
+  }
+  const json = await res.json();
+  return (json.goals ?? []) as Goal[];
+}
+
+// ★ Routing Rules ベースの getNextNode
+export async function getNextNode(
+  history: HistoryItem[],
+): Promise<FlowNode | null> {
+  // 初回（履歴なし）は Questions DB の先頭を返す
+  if (!history || history.length === 0) {
+    const questions = await fetchQuestions();
+    if (questions.length === 0) return null;
+
+    return {
+      type: 'question',
+      question: questions[0],
+    };
+  }
+
+  // 直近の質問と回答
+  const last = history[history.length - 1];
+  const currentQuestionId = last.question.id;
+  const answer = last.answer;
+
+  // Routing Rules を取得して判定
+  const rules = await fetchRoutingRules();
+  const result = decideNextNode(currentQuestionId, answer, rules);
+
+  if (!result) return null;
+
+  // 次が Question の場合
+  if (result.type === 'question') {
+    const questions = await fetchQuestions();
+    const nextQ = questions.find((q) => q.id === result.questionId);
+    if (!nextQ) return null;
+
+    return {
+      type: 'question',
+      question: nextQ,
+    };
+  }
+
+  // 次が Goal の場合
+  if (result.type === 'goal') {
+    const goals = await fetchGoals();
+    const matched = goals.filter((g) => result.goalIds.includes(g.id));
+
+    return {
+      type: 'result',
+      summary: 'ルールベース判断での提案結果です',
+      // Services は page.tsx 側で /api/services を叩いて上書きする
+      services: [],
+      goals: matched,
+    };
+  }
+
+  // End などその他
+  return null;
+}
